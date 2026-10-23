@@ -11,7 +11,8 @@ public class MidiReaderTest : MonoBehaviour
     public string nombreArchivoMidi = "EnderLilies.mid";
 
     [Header("Objetos Visuales")]
-    public GameObject prefabNota;
+    public GameObject prefabNotaBlanca;
+    public GameObject prefabNotaNegra;
     public Transform contenedorCascada;
 
     [Header("Ajustes de Cascada")]
@@ -23,35 +24,50 @@ public class MidiReaderTest : MonoBehaviour
     public float alturaAparicionY = 15f;
     public float alturaReciclajeY = -2f;
 
-    // Estructura para guardar los cálculos de cada nota
     private class DatosNota
     {
         public float posicionX;
         public float posicionY;
         public float alturaNota;
+        public bool esSostenido; // Nueva bandera
         public bool estaActiva;
         public bool estaTerminada;
         public GameObject cuboActivo;
     }
 
     private List<DatosNota> todasLasNotas = new List<DatosNota>();
-    private Queue<GameObject> poolDeNotas = new Queue<GameObject>();
+
+    // Separamos los pools
+    private Queue<GameObject> poolDeNotasBlancas = new Queue<GameObject>();
+    private Queue<GameObject> poolDeNotasNegras = new Queue<GameObject>();
 
     void Start()
     {
-        InicializarPool();
+        InicializarPools();
         GenerarCascadaVisual();
     }
 
-    void InicializarPool()
+    void InicializarPools()
     {
-        // Creamos los cubos apagados al inicio
         for (int i = 0; i < tamanoPool; i++)
         {
-            GameObject obj = Instantiate(prefabNota, contenedorCascada);
-            obj.SetActive(false);
-            poolDeNotas.Enqueue(obj);
+            // Llenar pool de blancas
+            GameObject objBlanca = Instantiate(prefabNotaBlanca, contenedorCascada);
+            objBlanca.SetActive(false);
+            poolDeNotasBlancas.Enqueue(objBlanca);
+
+            // Llenar pool de negras
+            GameObject objNegra = Instantiate(prefabNotaNegra, contenedorCascada);
+            objNegra.SetActive(false);
+            poolDeNotasNegras.Enqueue(objNegra);
         }
+    }
+
+    // Función auxiliar para detectar teclas negras matemáticamente
+    bool EsSostenidoOBemol(int numeroMidi)
+    {
+        int notaEnOctava = numeroMidi % 12;
+        return notaEnOctava == 1 || notaEnOctava == 3 || notaEnOctava == 6 || notaEnOctava == 8 || notaEnOctava == 10;
     }
 
     void GenerarCascadaVisual()
@@ -82,17 +98,15 @@ public class MidiReaderTest : MonoBehaviour
                 posicionX = xCalculado,
                 posicionY = yCalculado,
                 alturaNota = alturaCalculada,
+                esSostenido = EsSostenidoOBemol(nota.NoteNumber), // Detectamos el tipo de nota
                 estaActiva = false,
                 estaTerminada = false
             });
         }
-
-        Debug.Log($"¡Cascada calculada! {todasLasNotas.Count} notas listas para ser procesadas por el Pool.");
     }
 
     void Update()
     {
-        // Trasladar el contenedor completo
         if (contenedorCascada != null)
         {
             contenedorCascada.Translate(Vector3.down * velocidadCaida * Time.deltaTime, Space.World);
@@ -102,7 +116,6 @@ public class MidiReaderTest : MonoBehaviour
 
         foreach (var nota in todasLasNotas)
         {
-            // Ignorar notas recicladas
             if (nota.estaTerminada) continue;
 
             float yMundoActual = yMundoContenedor + nota.posicionY;
@@ -112,13 +125,18 @@ public class MidiReaderTest : MonoBehaviour
             {
                 GameObject cuboReciclado;
 
-                // Extraer del pool o instanciar de emergencia
-                if (poolDeNotas.Count > 0)
-                    cuboReciclado = poolDeNotas.Dequeue();
+                // Determinamos qué pool y qué prefab usar
+                Queue<GameObject> poolCorrecto = nota.esSostenido ? poolDeNotasNegras : poolDeNotasBlancas;
+                GameObject prefabCorrecto = nota.esSostenido ? prefabNotaNegra : prefabNotaBlanca;
+
+                if (poolCorrecto.Count > 0)
+                    cuboReciclado = poolCorrecto.Dequeue();
                 else
-                    cuboReciclado = Instantiate(prefabNota, contenedorCascada);
+                    cuboReciclado = Instantiate(prefabCorrecto, contenedorCascada);
 
                 cuboReciclado.transform.localPosition = new Vector3(nota.posicionX, nota.posicionY, 0);
+
+                // Si quieres que las notas negras sean más delgadas o de otro tamaño por defecto, puedes ajustarlo aquí
                 cuboReciclado.transform.localScale = new Vector3(anchoTecla * 0.9f, nota.alturaNota, 0.01f);
 
                 cuboReciclado.SetActive(true);
@@ -131,7 +149,13 @@ public class MidiReaderTest : MonoBehaviour
             if (nota.estaActiva && yMundoActual < alturaReciclajeY)
             {
                 nota.cuboActivo.SetActive(false);
-                poolDeNotas.Enqueue(nota.cuboActivo);
+
+                // Regresamos el cubo a su respectivo pool
+                if (nota.esSostenido)
+                    poolDeNotasNegras.Enqueue(nota.cuboActivo);
+                else
+                    poolDeNotasBlancas.Enqueue(nota.cuboActivo);
+
                 nota.cuboActivo = null;
                 nota.estaTerminada = true;
             }

@@ -178,7 +178,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MidiReaderTest
   nombreArchivoMidi: EnderLilies.mid
-  prefabNota: {fileID: 6297013379249685937, guid: 3ffaf11fb3bfabf43bc581d4199e2f22, type: 3}
+  prefabNotaBlanca: {fileID: 6297013379249685937, guid: 3ffaf11fb3bfabf43bc581d4199e2f22, type: 3}
+  prefabNotaNegra: {fileID: 6297013379249685937, guid: a4a7d54fc453d434aa4b92d43d75200b, type: 3}
   contenedorCascada: {fileID: 2083557862}
   velocidadCaida: 2
   anchoTecla: 0.024
