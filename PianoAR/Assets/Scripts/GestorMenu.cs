@@ -1,7 +1,6 @@
 using UnityEngine;
 using TMPro;
-using System.Collections; // Necesario para modificar los textos de la UI
-
+using System.Collections; 
 public class GestorMenu : MonoBehaviour
 {
     [Header("Paneles Principales UI")]
@@ -10,8 +9,8 @@ public class GestorMenu : MonoBehaviour
     public GameObject panelJuegoAR;
 
     [Header("Sub-Elementos de Selección")]
-    public GameObject contenedorOpcionesMano; // El sub-panel derecho que tiene los botones de mano
-    public TextMeshProUGUI textoTituloCancion; // El texto arriba de los botones de mano
+    public GameObject contenedorOpcionesMano; 
+    public TextMeshProUGUI textoTituloCancion; 
 
     [Header("Referencias Externas")]
     public MidiReaderTest lectorMidi;
@@ -30,7 +29,6 @@ public class GestorMenu : MonoBehaviour
         MostrarMenuPrincipal();
     }
 
-    // --- NAVEGACIÓN PRINCIPAL ---
 
     public void MostrarMenuPrincipal()
     {
@@ -38,8 +36,8 @@ public class GestorMenu : MonoBehaviour
         panelSeleccionCanciones.SetActive(false);
         panelJuegoAR.SetActive(false);
 
-        reproductorAudio.Stop(); // Apagar cualquier música que esté sonando
-        cancionSeleccionada = ""; // Limpiar selección
+        reproductorAudio.Stop();
+        cancionSeleccionada = "";
     }
 
     public void MostrarSeleccionCanciones()
@@ -48,32 +46,24 @@ public class GestorMenu : MonoBehaviour
         panelSeleccionCanciones.SetActive(true);
         panelJuegoAR.SetActive(false);
 
-        // Reseteamos la vista: ocultamos las opciones de mano hasta que elijan una canción
         contenedorOpcionesMano.SetActive(false);
         textoTituloCancion.text = "Selecciona una pista para escucharla";
     }
 
-    // --- LÓGICA DEL PANEL DE SELECCIÓN ---
-
-    // Asigna esta función a los 3 botones de tus canciones
-    // En el inspector, en el campo "String", pondrás el ID de la canción (ej. "EnderLilies", "FF7")
     public void SeleccionarCancion(string idCancion)
     {
         cancionSeleccionada = idCancion;
 
-        // 1. Mostrar las opciones de mano y actualizar el título
         contenedorOpcionesMano.SetActive(true);
         textoTituloCancion.text = "Practicando: " + idCancion;
 
-        // 2. Reproducir la vista previa del audio
-        // Asume que tienes tus MP3/WAV dentro de una carpeta llamada "Resources/Audios" en Unity
         AudioClip clipPreview = Resources.Load<AudioClip>("Audios/" + idCancion);
 
         if (clipPreview != null)
         {
-            reproductorAudio.Stop(); // Detiene la anterior si estaban escuchando otra
+            reproductorAudio.Stop();
             reproductorAudio.clip = clipPreview;
-            reproductorAudio.pitch = 1f; // Asegurar velocidad normal
+            reproductorAudio.pitch = 1f;
             reproductorAudio.Play();
         }
         else
@@ -82,19 +72,15 @@ public class GestorMenu : MonoBehaviour
         }
     }
 
-    // Asigna esta función a los botones "Mano Izquierda" y "Mano Derecha"
-    // En el inspector, el parámetro string será "Izq" o "Der"
     public void IniciarPractica(string sufijoMano)
     {
         if (string.IsNullOrEmpty(cancionSeleccionada)) return;
 
-        // Guardamos el nombre pero NO iniciamos el juego aún
         archivoMidiPendiente = cancionSeleccionada + "_" + sufijoMano + ".mid";
 
         panelSeleccionCanciones.SetActive(false);
         panelJuegoAR.SetActive(true);
 
-        // Preparamos y silenciamos el audio
         reproductorAudio.Stop();
         reproductorAudio.time = 0f;
 
@@ -122,7 +108,6 @@ public class GestorMenu : MonoBehaviour
 
         textoCuentaRegresiva.text = "¡A TOCAR!";
 
-        // El anclaje está listo, iniciamos música y cascada
         reproductorAudio.Stop();
         reproductorAudio.time = 0f;
         reproductorAudio.Play();
@@ -143,15 +128,12 @@ public class GestorMenu : MonoBehaviour
         lectorMidi.DetenerCascada();
     }
 
-    // --- CONTROL DE VELOCIDAD (Para el PanelJuegoAR) ---
-
     public void CambiarVelocidadJuego(float multiplicador)
     {
         lectorMidi.CambiarVelocidadCaida(multiplicador);
         reproductorAudio.pitch = multiplicador;
     }
 
-    // Función para el botón "Salir de la App" en el Menú Principal
     public void SalirAplicacion()
     {
         Application.Quit();

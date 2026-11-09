@@ -41,12 +41,11 @@ public class MidiReaderTest : MonoBehaviour
     private Queue<GameObject> poolDeNotasBlancas = new Queue<GameObject>();
     private Queue<GameObject> poolDeNotasNegras = new Queue<GameObject>();
 
-    // Variable para recordar la velocidad original
     private float velocidadOriginal;
 
     void Start()
     {
-        velocidadOriginal = velocidadCaida; // Guardamos el 100%
+        velocidadOriginal = velocidadCaida;
         InicializarPools();
     }
 
@@ -72,27 +71,19 @@ public class MidiReaderTest : MonoBehaviour
 
     float ObtenerPosicionXReal(int numeroMidi)
     {
-        // El Do Central es el 60. Lo usamos como el centro (X = 0).
         int distanciaMidi = numeroMidi - 60;
 
-        // Calculamos cuántas octavas de distancia hay desde el centro
         int octavas = Mathf.FloorToInt((float)distanciaMidi / 12f);
 
-        // Calculamos qué nota es dentro de su octava (0 = Do, 1 = Do#, ..., 11 = Si)
         int notaEnOctava = distanciaMidi - (octavas * 12);
 
-        // Posiciones físicas de las teclas relativas al Do (medidas en "anchos de tecla blanca")
-        // Notarás que el Mi (4) y el Fa (5) saltan un entero completo porque están pegados
         float[] posiciones = new float[12] { 0f, 0.5f, 1f, 1.5f, 2f, 3f, 3.5f, 4f, 4.5f, 5f, 5.5f, 6f };
 
-        // Una octava completa tiene 7 teclas blancas de ancho
         float anchoOctavaFisica = 7f * anchoTecla;
 
-        // Retornamos la posición real sumando las octavas y la posición de la nota individual
         return (octavas * anchoOctavaFisica) + (posiciones[notaEnOctava] * anchoTecla);
     }
 
-    // Esta función reemplaza a GenerarCascadaVisual y recibe la ruta ya procesada (PC o Android)
     public void ProcesarMidiFisico(string rutaArchivo)
     {
         if (!File.Exists(rutaArchivo))
@@ -105,13 +96,11 @@ public class MidiReaderTest : MonoBehaviour
         TempoMap mapaTempo = archivoMidi.GetTempoMap();
         var notasMidi = archivoMidi.GetNotes().ToList();
 
-        // Calculamos todo basándonos en la velocidadOriginal, no en la actual
         foreach (var nota in notasMidi)
         {
             float tiempoInicio = (float)nota.TimeAs<MetricTimeSpan>(mapaTempo).TotalMicroseconds / 1000000f;
             float duracion = (float)nota.LengthAs<MetricTimeSpan>(mapaTempo).TotalMicroseconds / 1000000f;
 
-            //float xCalculado = (nota.NoteNumber - 60) * anchoTecla;
             float xCalculado = ObtenerPosicionXReal(nota.NoteNumber);
             float alturaCalculada = duracion * velocidadOriginal;
             float yCalculado = (tiempoInicio * velocidadOriginal) + (alturaCalculada / 2f);
@@ -132,18 +121,15 @@ public class MidiReaderTest : MonoBehaviour
     {
         if (contenedorCascada != null)
         {
-            // El contenedor baja usando la velocidadCaida actual (que los botones pueden modificar)
             contenedorCascada.Translate(Vector3.down * velocidadCaida * Time.deltaTime, Space.Self);
         }
 
-        //float yMundoContenedor = contenedorCascada.position.y;
           float yLocalContenedor = contenedorCascada.localPosition.y;
         
         foreach (var nota in todasLasNotas)
         {
             if (nota.estaTerminada) continue;
 
-            //float yMundoActual = yMundoContenedor + nota.posicionY;
             float yLocalActual = yLocalContenedor + nota.posicionY;
 
             if (!nota.estaActiva && yLocalActual <= alturaAparicionY)
@@ -204,7 +190,7 @@ public class MidiReaderTest : MonoBehaviour
     public void IniciarCascada(string nombreArchivo)
     {
         nombreArchivoMidi = nombreArchivo;
-        todasLasNotas.Clear(); // Limpiamos por si venimos de otra canción
+        todasLasNotas.Clear();
 
         if (contenedorCascada != null)
         {
@@ -212,7 +198,6 @@ public class MidiReaderTest : MonoBehaviour
             contenedorCascada.localPosition = Vector3.zero;
         }
 
-        // Arrancamos la extracción para Android
         StartCoroutine(ExtraerYLeerMidi(nombreArchivo));
     }
 
@@ -223,14 +208,12 @@ public class MidiReaderTest : MonoBehaviour
 
     public void DetenerCascada()
     {
-        // 1. Reciclamos los cubos directamente desde nuestra lista de datos segura
         foreach (var nota in todasLasNotas)
         {
             if (nota.estaActiva && nota.cuboActivo != null)
             {
                 nota.cuboActivo.SetActive(false);
 
-                // Los devolvemos a su respectivo pool sin importar cómo se llame el Prefab
                 if (nota.esSostenido)
                     poolDeNotasNegras.Enqueue(nota.cuboActivo);
                 else
@@ -241,10 +224,8 @@ public class MidiReaderTest : MonoBehaviour
             }
         }
 
-        // 2. Vaciamos la lista ahora que los cubos están a salvo
         todasLasNotas.Clear();
 
-        // 3. Apagamos el contenedor principal
         if (contenedorCascada != null)
         {
             contenedorCascada.gameObject.SetActive(false);
@@ -257,20 +238,16 @@ public class MidiReaderTest : MonoBehaviour
         string rutaStreaming = Path.Combine(Application.streamingAssetsPath, nombreArchivo);
         string rutaPersistente = Path.Combine(Application.persistentDataPath, nombreArchivo);
 
-        // Verificamos si estamos en Android (la ruta contiene //)
         if (rutaStreaming.Contains("://") || rutaStreaming.Contains(":///"))
         {
-            // Extraemos el archivo desde el APK
             using (UnityWebRequest www = UnityWebRequest.Get(rutaStreaming))
             {
                 yield return www.SendWebRequest();
 
                 if (www.result == UnityWebRequest.Result.Success)
                 {
-                    // Guardamos el MIDI en la memoria real del teléfono
                     File.WriteAllBytes(rutaPersistente, www.downloadHandler.data);
 
-                    // Procesamos el archivo extraído
                     ProcesarMidiFisico(rutaPersistente);
                 }
                 else
@@ -281,7 +258,6 @@ public class MidiReaderTest : MonoBehaviour
         }
         else
         {
-            // En PC / Editor de Unity se lee directamente de StreamingAssets
             ProcesarMidiFisico(rutaStreaming);
         }
     }

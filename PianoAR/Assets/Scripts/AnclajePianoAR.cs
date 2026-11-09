@@ -81,8 +81,6 @@ public class AnclajePianoAR : MonoBehaviour
         {
             objetoCascada.SetParent(null);
 
-            // NUEVO: Clavamos el objeto al mundo real usando un Ancla Espacial de ARCore.
-            // Esto elimina por completo el "temblor" y evita que la cámara lo jale.
             if (objetoCascada.GetComponent<ARAnchor>() == null)
             {
                 objetoCascada.gameObject.AddComponent<ARAnchor>();
@@ -100,7 +98,6 @@ public class AnclajePianoAR : MonoBehaviour
 
         if (objetoCascada != null)
         {
-            // NUEVO: Destruimos el ancla para que la cámara pueda volver a arrastrar el objeto
             ARAnchor ancla = objetoCascada.GetComponent<ARAnchor>();
             if (ancla != null)
             {
