@@ -4,8 +4,13 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/Piano.unity
+    guid: a88998c6a947c184e823eb4f984584b5
   m_configObjects:
+    UnityEditor.XR.ARCore.ARCoreSettings: {fileID: 11400000, guid: 00f2b29b4ea28ec499ac50f60898cba1, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 289c1b55c9541489481df5cc06664110, type: 3}
     com.unity.xr.arfoundation.simulation_settings: {fileID: 11400000, guid: 831cf9379aa17a643a422547c46e24e6, type: 2}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: dfc393baa7d2e2a498cde7d66e67f9a0, type: 2}
   m_UseUCBPForAssetBundles: 0
