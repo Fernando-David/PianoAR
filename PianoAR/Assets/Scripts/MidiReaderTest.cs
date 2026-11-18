@@ -6,6 +6,7 @@ using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using UnityEngine.Networking;
 using System.Collections;
+using TMPro;
 
 public class MidiReaderTest : MonoBehaviour
 {
@@ -35,6 +36,7 @@ public class MidiReaderTest : MonoBehaviour
         public bool estaActiva;
         public bool estaTerminada;
         public GameObject cuboActivo;
+        public string letraNota;
     }
 
     private List<DatosNota> todasLasNotas = new List<DatosNota>();
@@ -104,6 +106,8 @@ public class MidiReaderTest : MonoBehaviour
             float xCalculado = ObtenerPosicionXReal(nota.NoteNumber);
             float alturaCalculada = duracion * velocidadOriginal;
             float yCalculado = (tiempoInicio * velocidadOriginal) + (alturaCalculada / 2f);
+            string[] nombresNotas = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+            string letraTraducida = nombresNotas[nota.NoteNumber % 12];
 
             todasLasNotas.Add(new DatosNota
             {
@@ -112,7 +116,8 @@ public class MidiReaderTest : MonoBehaviour
                 alturaNota = alturaCalculada,
                 esSostenido = EsSostenidoOBemol(nota.NoteNumber),
                 estaActiva = false,
-                estaTerminada = false
+                estaTerminada = false,
+                letraNota = letraTraducida
             });
         }
     }
@@ -144,7 +149,18 @@ public class MidiReaderTest : MonoBehaviour
                     cuboReciclado = Instantiate(prefabCorrecto, contenedorCascada);
 
                 cuboReciclado.transform.localPosition = new Vector3(nota.posicionX, nota.posicionY, -0.02f);
-                cuboReciclado.transform.localScale = new Vector3(anchoTecla * 0.9f, nota.alturaNota, 0.03f);
+
+                Transform cuboVisual = cuboReciclado.transform.GetChild(0);
+                cuboVisual.localScale = new Vector3(anchoTecla * 0.9f, nota.alturaNota, 0.03f);
+
+                TextMeshPro texto = cuboReciclado.GetComponentInChildren<TextMeshPro>();
+                if (texto != null)
+                {
+                    texto.text = nota.letraNota;
+
+                    float bordeInferior = -(nota.alturaNota / 2f) + 0.02f;
+                    texto.transform.localPosition = new Vector3(0, bordeInferior, -0.03f);
+                }
 
                 cuboReciclado.SetActive(true);
                 nota.cuboActivo = cuboReciclado;

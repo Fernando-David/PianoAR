@@ -119,11 +119,11 @@ public class GestorMenu : MonoBehaviour
 
     public void InterrumpirPractica()
     {
-        // Detiene la cuenta regresiva si estaba a medias
+
         if (rutinaCuenta != null) StopCoroutine(rutinaCuenta);
         if (textoCuentaRegresiva != null) textoCuentaRegresiva.gameObject.SetActive(false);
 
-        // Apaga la música y resetea las notas
+
         reproductorAudio.Stop();
         lectorMidi.DetenerCascada();
     }

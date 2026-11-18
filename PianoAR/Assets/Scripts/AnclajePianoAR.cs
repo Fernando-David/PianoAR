@@ -19,14 +19,26 @@ public class AnclajePianoAR : MonoBehaviour
     [Header("Interfaz de Usuario")]
     public GameObject botonFijar;
     public GameObject botonReajustar;
+    public GameObject panelCalibracion;
     public GestorMenu gestorMenu;
 
     private ARTrackedImageManager gestorImagenes;
+
+    [Header("Ajuste Fino en Tiempo Real")]
+    public float pasoAjuste = 0.01f;
+
+    public void MoverArriba() { AplicarAjusteLocal(new Vector3(0, pasoAjuste, 0)); }
+    public void MoverAbajo() { AplicarAjusteLocal(new Vector3(0, -pasoAjuste, 0)); }
+    public void MoverDerecha() { AplicarAjusteLocal(new Vector3(pasoAjuste, 0, 0)); }
+    public void MoverIzquierda() { AplicarAjusteLocal(new Vector3(-pasoAjuste, 0, 0)); }
+    public void MoverAdelante() { AplicarAjusteLocal(new Vector3(0, 0, pasoAjuste)); }
+    public void MoverAtras() { AplicarAjusteLocal(new Vector3(0, 0, -pasoAjuste)); }
 
     void Start()
     {
         if (botonFijar != null) botonFijar.SetActive(true);
         if (botonReajustar != null) botonReajustar.SetActive(false);
+        if (panelCalibracion != null) panelCalibracion.SetActive(true);
     }
 
     void Awake()
@@ -43,6 +55,19 @@ public class AnclajePianoAR : MonoBehaviour
     void OnDisable()
     {
         gestorImagenes.trackedImagesChanged -= AlCambiarImagen;
+    }
+
+    private void AplicarAjusteLocal(Vector3 desplazamiento)
+    {
+        // 1. Guardamos el ajuste para que futuras detecciones del marcador lo respeten
+        ajustePosicion += desplazamiento;
+
+        // 2. Si el panel ya está "Fijado" y el usuario decide moverlo, 
+        // desplazamos el objeto físicamente en ese instante respetando su propia rotación.
+        if (posicionFijada && objetoCascada != null)
+        {
+            objetoCascada.Translate(desplazamiento, Space.Self);
+        }
     }
 
     void AlCambiarImagen(ARTrackedImagesChangedEventArgs args)
@@ -77,18 +102,11 @@ public class AnclajePianoAR : MonoBehaviour
     {
         posicionFijada = true;
 
-        if (objetoCascada != null)
-        {
-            objetoCascada.SetParent(null);
-
-            if (objetoCascada.GetComponent<ARAnchor>() == null)
-            {
-                objetoCascada.gameObject.AddComponent<ARAnchor>();
-            }
-        }
-
         if (botonFijar != null) botonFijar.SetActive(false);
         if (botonReajustar != null) botonReajustar.SetActive(true);
+
+        if (panelCalibracion != null) panelCalibracion.SetActive(false);
+
         if (gestorMenu != null) gestorMenu.IniciarCuentaRegresiva();
     }
 
@@ -96,17 +114,11 @@ public class AnclajePianoAR : MonoBehaviour
     {
         posicionFijada = false;
 
-        if (objetoCascada != null)
-        {
-            ARAnchor ancla = objetoCascada.GetComponent<ARAnchor>();
-            if (ancla != null)
-            {
-                Destroy(ancla);
-            }
-        }
-
         if (botonReajustar != null) botonReajustar.SetActive(false);
         if (botonFijar != null) botonFijar.SetActive(true);
+
+        if (panelCalibracion != null) panelCalibracion.SetActive(true);
+
         if (gestorMenu != null) gestorMenu.InterrumpirPractica();
     }
 }
