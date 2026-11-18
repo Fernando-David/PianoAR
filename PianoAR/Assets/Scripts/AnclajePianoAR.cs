@@ -1,124 +1,150 @@
 using UnityEngine;
-using UnityEngine.XR.ARFoundation;
-using UnityEngine.XR.ARSubsystems;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.EnhancedTouch;
+using TMPro;
+using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
+using TouchPhase = UnityEngine.InputSystem.TouchPhase;
 
-[RequireComponent(typeof(ARTrackedImageManager))]
 public class AnclajePianoAR : MonoBehaviour
 {
-    [Header("Referencias")]
+    [Header("Referencias Principales")]
     public Transform objetoCascada;
-    public string nombreMarcador = "PianoAR81";
+    public Transform camaraAR;
+    public GameObject imagenPianoGuia;
 
-    [Header("Calibración Fina")]
-    [Tooltip("Ajuste manual (X, Y, Z) en metros. Z ajusta la profundidad sobre las teclas.")]
-    public Vector3 ajustePosicion = new Vector3(0, 0, 0.1f);
+    [Header("UI del Botón de Modo (Opcional)")]
+    public TMP_Text textoBotonModo;
 
-    [Header("Control de Anclaje Espacial")]
-    private bool posicionFijada = false;
+    [Header("Sensibilidad Táctil")]
+    public float sensibilidadMovimiento = 0.002f;
+    public float sensibilidadProfundidad = 0.003f;
+    public float sensibilidadEscala = 0.001f;
+    public float sensibilidadRotacion = 0.4f;
 
-    [Header("Interfaz de Usuario")]
-    public GameObject botonFijar;
-    public GameObject botonReajustar;
-    public GameObject panelCalibracion;
-    public GestorMenu gestorMenu;
+    [Header("Límites de Escala Horizontal")]
+    public float escalaMinimaX = 0.5f;
+    public float escalaMaximaX = 2.5f;
 
-    private ARTrackedImageManager gestorImagenes;
+    [SerializeField] private bool modoCalibracionActivo = false;
+    [SerializeField] private bool modoEscaladoX = false; // false = Profundidad/Rotar, true = Solo Escala X
 
-    [Header("Ajuste Fino en Tiempo Real")]
-    public float pasoAjuste = 0.01f;
-
-    public void MoverArriba() { AplicarAjusteLocal(new Vector3(0, pasoAjuste, 0)); }
-    public void MoverAbajo() { AplicarAjusteLocal(new Vector3(0, -pasoAjuste, 0)); }
-    public void MoverDerecha() { AplicarAjusteLocal(new Vector3(pasoAjuste, 0, 0)); }
-    public void MoverIzquierda() { AplicarAjusteLocal(new Vector3(-pasoAjuste, 0, 0)); }
-    public void MoverAdelante() { AplicarAjusteLocal(new Vector3(0, 0, pasoAjuste)); }
-    public void MoverAtras() { AplicarAjusteLocal(new Vector3(0, 0, -pasoAjuste)); }
-
-    void Start()
-    {
-        if (botonFijar != null) botonFijar.SetActive(true);
-        if (botonReajustar != null) botonReajustar.SetActive(false);
-        if (panelCalibracion != null) panelCalibracion.SetActive(true);
-    }
-
-    void Awake()
-    {
-        gestorImagenes = GetComponent<ARTrackedImageManager>();
-    }
-
-#pragma warning disable CS0618 
     void OnEnable()
     {
-        gestorImagenes.trackedImagesChanged += AlCambiarImagen;
+        EnhancedTouchSupport.Enable();
     }
 
     void OnDisable()
     {
-        gestorImagenes.trackedImagesChanged -= AlCambiarImagen;
+        EnhancedTouchSupport.Disable();
     }
 
-    private void AplicarAjusteLocal(Vector3 desplazamiento)
+    void Start()
     {
-        // 1. Guardamos el ajuste para que futuras detecciones del marcador lo respeten
-        ajustePosicion += desplazamiento;
-
-        // 2. Si el panel ya está "Fijado" y el usuario decide moverlo, 
-        // desplazamos el objeto físicamente en ese instante respetando su propia rotación.
-        if (posicionFijada && objetoCascada != null)
-        {
-            objetoCascada.Translate(desplazamiento, Space.Self);
-        }
+        ActualizarTextoBoton();
     }
 
-    void AlCambiarImagen(ARTrackedImagesChangedEventArgs args)
+    void Update()
     {
-        if (posicionFijada) return;
+        if (!modoCalibracionActivo || objetoCascada == null || camaraAR == null) return;
 
-        foreach (var imagen in args.added)
-        {
-            ActualizarAnclaje(imagen);
-        }
-        foreach (var imagen in args.updated)
-        {
-            ActualizarAnclaje(imagen);
-        }
-    }
-#pragma warning restore CS0618
+        var toquesActivos = Touch.activeTouches;
 
-    void ActualizarAnclaje(ARTrackedImage imagen)
-    {
-        if (imagen.referenceImage.name == nombreMarcador && imagen.trackingState == TrackingState.Tracking)
+        // ==========================================================
+        // 1 DEDO: MOVER EN EL PLANO DE LA CÁMARA
+        // ==========================================================
+        if (toquesActivos.Count == 1)
         {
-            if (!objetoCascada.gameObject.activeSelf)
+            Touch toque = toquesActivos[0];
+
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(toque.touchId))
+                return;
+
+            if (toque.phase == TouchPhase.Moved)
             {
-                objetoCascada.gameObject.SetActive(true);
+                MoverCascadaEnPantalla(toque.delta.x, toque.delta.y);
             }
-            objetoCascada.position = imagen.transform.position + imagen.transform.TransformDirection(ajustePosicion);
-            objetoCascada.rotation = imagen.transform.rotation;
+        }
+        // ==========================================================
+        // 2 DEDOS: DEPENDE DEL MODO SELECCIONADO CON EL BOTÓN
+        // ==========================================================
+        else if (toquesActivos.Count == 2)
+        {
+            Touch toque1 = toquesActivos[0];
+            Touch toque2 = toquesActivos[1];
+
+            if (toque1.phase == TouchPhase.Moved || toque2.phase == TouchPhase.Moved)
+            {
+                Vector2 posActual1 = toque1.screenPosition;
+                Vector2 posActual2 = toque2.screenPosition;
+                Vector2 posPrevia1 = posActual1 - toque1.delta;
+                Vector2 posPrevia2 = posActual2 - toque2.delta;
+
+                float distanciaPrevia = (posPrevia1 - posPrevia2).magnitude;
+                float distanciaActual = (posActual1 - posActual2).magnitude;
+                float diferenciaDistancia = distanciaActual - distanciaPrevia;
+
+                if (modoEscaladoX)
+                {
+                    // --- MODO ESCALA X (Rotación bloqueada para evitar accidentes) ---
+                    Vector3 escalaActual = objetoCascada.localScale;
+                    escalaActual.x = Mathf.Clamp(escalaActual.x + (diferenciaDistancia * sensibilidadEscala), escalaMinimaX, escalaMaximaX);
+                    objetoCascada.localScale = escalaActual;
+                }
+                else
+                {
+                    // --- MODO PROFUNDIDAD (Acerca/Aleja + Rotación habilitada) ---
+                    objetoCascada.position += camaraAR.forward * (diferenciaDistancia * sensibilidadProfundidad);
+
+                    float anguloPrevio = Mathf.Atan2(posPrevia2.y - posPrevia1.y, posPrevia2.x - posPrevia1.x) * Mathf.Rad2Deg;
+                    float anguloActual = Mathf.Atan2(posActual2.y - posActual1.y, posActual2.x - posActual1.x) * Mathf.Rad2Deg;
+                    float diferenciaAngulo = Mathf.DeltaAngle(anguloPrevio, anguloActual);
+
+                    objetoCascada.Rotate(objetoCascada.forward, -diferenciaAngulo * sensibilidadRotacion, Space.World);
+                }
+            }
         }
     }
 
-    public void ConfirmarPosicion()
+    // --- FUNCIÓN PARA TU NUEVO BOTÓN EN EL CANVAS ---
+    public void AlternarModoPellizco()
     {
-        posicionFijada = true;
-
-        if (botonFijar != null) botonFijar.SetActive(false);
-        if (botonReajustar != null) botonReajustar.SetActive(true);
-
-        if (panelCalibracion != null) panelCalibracion.SetActive(false);
-
-        if (gestorMenu != null) gestorMenu.IniciarCuentaRegresiva();
+        modoEscaladoX = !modoEscaladoX;
+        ActualizarTextoBoton();
     }
 
-    public void ReajustarPosicion()
+    private void ActualizarTextoBoton()
     {
-        posicionFijada = false;
+        if (textoBotonModo != null)
+        {
+            textoBotonModo.text = modoEscaladoX ? "Modo: Ancho X" : "Modo: Distancia";
+        }
+    }
 
-        if (botonReajustar != null) botonReajustar.SetActive(false);
-        if (botonFijar != null) botonFijar.SetActive(true);
+    private void MoverCascadaEnPantalla(float deltaX, float deltaY)
+    {
+        Vector3 direccion = (camaraAR.right * deltaX + camaraAR.up * deltaY) * sensibilidadMovimiento;
+        objetoCascada.position += direccion;
+    }
 
-        if (panelCalibracion != null) panelCalibracion.SetActive(true);
+    public void CentrarFrenteACamara()
+    {
+        if (objetoCascada != null && camaraAR != null)
+        {
+            objetoCascada.position = camaraAR.position + (camaraAR.forward * 0.4f);
+            objetoCascada.rotation = camaraAR.rotation;
+        }
+    }
 
-        if (gestorMenu != null) gestorMenu.InterrumpirPractica();
+    public void ActivarModoCalibracion()
+    {
+        modoCalibracionActivo = true;
+        if (objetoCascada != null) objetoCascada.gameObject.SetActive(true);
+        if (imagenPianoGuia != null) imagenPianoGuia.SetActive(true);
+    }
+
+    public void DesactivarModoCalibracion()
+    {
+        modoCalibracionActivo = false;
+        if (imagenPianoGuia != null) imagenPianoGuia.SetActive(false);
     }
 }

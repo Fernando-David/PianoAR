@@ -21,6 +21,11 @@ public class GestorMenu : MonoBehaviour
     private string archivoMidiPendiente = "";
     private Coroutine rutinaCuenta;
 
+    [Header("Nuevos Paneles y AR")]
+    public GameObject panelDeCalibracion; // Arrastra tu nuevo panel aquí
+    public AnclajePianoAR scriptAnclaje;
+    private bool pianoYaCalibrado = false;
+
     // Variables internas
     private string cancionSeleccionada = "";
 
@@ -42,14 +47,46 @@ public class GestorMenu : MonoBehaviour
 
     public void MostrarSeleccionCanciones()
     {
+        // Si no está calibrado, forzamos la pantalla de calibración primero
+        if (!pianoYaCalibrado)
+        {
+            AbrirMenuCalibracion();
+            return;
+        }
+
+        // Si ya está calibrado, vamos al menú de canciones normal
         panelMenuPrincipal.SetActive(false);
+        panelDeCalibracion.SetActive(false);
         panelSeleccionCanciones.SetActive(true);
         panelJuegoAR.SetActive(false);
 
         contenedorOpcionesMano.SetActive(false);
         textoTituloCancion.text = "Selecciona una pista para escucharla";
     }
+    public void AbrirMenuCalibracion()
+    {
+        panelMenuPrincipal.SetActive(false);
+        panelSeleccionCanciones.SetActive(false);
+        panelJuegoAR.SetActive(false);
 
+        panelDeCalibracion.SetActive(true);
+        scriptAnclaje.ActivarModoCalibracion();
+
+        // Si es la primera vez que entra, le centramos la cascada automáticamente
+        if (!pianoYaCalibrado)
+        {
+            scriptAnclaje.CentrarFrenteACamara();
+        }
+    }
+
+    public void FinalizarCalibracion()
+    {
+        pianoYaCalibrado = true;
+        scriptAnclaje.DesactivarModoCalibracion();
+
+        // Al terminar, pasamos directamente a la selección de canciones
+        MostrarSeleccionCanciones();
+    }
     public void SeleccionarCancion(string idCancion)
     {
         cancionSeleccionada = idCancion;
@@ -85,6 +122,29 @@ public class GestorMenu : MonoBehaviour
         reproductorAudio.time = 0f;
 
         if (textoCuentaRegresiva != null) textoCuentaRegresiva.gameObject.SetActive(false);
+
+        // --- NUEVA LÓGICA DE DECISIÓN ---
+        if (!pianoYaCalibrado)
+        {
+            // Es la primera vez: Activamos el panel de calibración táctil
+            scriptAnclaje.ActivarModoCalibracion();
+            pianoYaCalibrado = true; // Lo marcamos como calibrado para las próximas canciones
+        }
+        else
+        {
+            // Ya estaba calibrado: Saltamos directo a la cuenta regresiva y a tocar
+            IniciarCuentaRegresiva();
+        }
+    }
+
+    public void ForzarCalibracionManual()
+    {
+        // Se llama desde el menú de Selección de Canciones para re-calibrar
+        panelSeleccionCanciones.SetActive(false);
+        panelJuegoAR.SetActive(true);
+
+        scriptAnclaje.ActivarModoCalibracion();
+        pianoYaCalibrado = true;
     }
 
     public void IniciarCuentaRegresiva()
