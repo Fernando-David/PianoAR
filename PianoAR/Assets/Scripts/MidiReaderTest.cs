@@ -18,20 +18,20 @@ public class MidiReaderTest : MonoBehaviour
     public GameObject prefabNotaNegra;
     public Transform contenedorCascada;
 
-    [Header("Ajustes de Cascada")]
+    [Header("Ajustes de Cascada y Tiempo")]
     public float velocidadCaida = 2f;
     public float anchoTecla = 0.024f;
+    public float tiempoGraciaSegundos = 3f; // 3 segundos de anticipación al inicio
 
     [Header("Configuración del Pool")]
     public int tamanoPool = 40;
     public float alturaAparicionY = 15f;
-    public float alturaReciclajeY = -2f;
 
     private class DatosNota
     {
         public float posicionX;
-        public float posicionY;
-        public float alturaNota;
+        public float yInferiorOriginal; // Posición donde inicia la base de la nota
+        public float alturaOriginal;    // Largo total de la nota
         public bool esSostenido;
         public bool estaActiva;
         public bool estaTerminada;
@@ -44,6 +44,8 @@ public class MidiReaderTest : MonoBehaviour
     private Queue<GameObject> poolDeNotasNegras = new Queue<GameObject>();
 
     private float velocidadOriginal;
+    private float distanciaRecorrida = 0f;
+    private bool cascadaEnMovimiento = false;
 
     void Start()
     {
@@ -74,13 +76,10 @@ public class MidiReaderTest : MonoBehaviour
     float ObtenerPosicionXReal(int numeroMidi)
     {
         int distanciaMidi = numeroMidi - 60;
-
         int octavas = Mathf.FloorToInt((float)distanciaMidi / 12f);
-
         int notaEnOctava = distanciaMidi - (octavas * 12);
 
         float[] posiciones = new float[12] { 0f, 0.5f, 1f, 1.5f, 2f, 3f, 3.5f, 4f, 4.5f, 5f, 5.5f, 6f };
-
         float anchoOctavaFisica = 7f * anchoTecla;
 
         return (octavas * anchoOctavaFisica) + (posiciones[notaEnOctava] * anchoTecla);
@@ -98,6 +97,9 @@ public class MidiReaderTest : MonoBehaviour
         TempoMap mapaTempo = archivoMidi.GetTempoMap();
         var notasMidi = archivoMidi.GetNotes().ToList();
 
+        // Desfase espacial equivalente a los 3 segundos de gracia iniciales
+        float offsetGraciaEspacial = tiempoGraciaSegundos * velocidadOriginal;
+
         foreach (var nota in notasMidi)
         {
             float tiempoInicio = (float)nota.TimeAs<MetricTimeSpan>(mapaTempo).TotalMicroseconds / 1000000f;
@@ -105,39 +107,45 @@ public class MidiReaderTest : MonoBehaviour
 
             float xCalculado = ObtenerPosicionXReal(nota.NoteNumber);
             float alturaCalculada = duracion * velocidadOriginal;
-            float yCalculado = (tiempoInicio * velocidadOriginal) + (alturaCalculada / 2f);
+
+            // Guardamos dónde empieza el borde inferior de la nota sumando los 3 segundos de gracia
+            float yBaseCalculado = (tiempoInicio * velocidadOriginal) + offsetGraciaEspacial;
+
             string[] nombresNotas = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
             string letraTraducida = nombresNotas[nota.NoteNumber % 12];
 
             todasLasNotas.Add(new DatosNota
             {
                 posicionX = xCalculado,
-                posicionY = yCalculado,
-                alturaNota = alturaCalculada,
+                yInferiorOriginal = yBaseCalculado,
+                alturaOriginal = alturaCalculada,
                 esSostenido = EsSostenidoOBemol(nota.NoteNumber),
                 estaActiva = false,
                 estaTerminada = false,
                 letraNota = letraTraducida
             });
         }
+
+        cascadaEnMovimiento = true;
     }
 
     void Update()
     {
-        if (contenedorCascada != null)
-        {
-            contenedorCascada.Translate(Vector3.down * velocidadCaida * Time.deltaTime, Space.Self);
-        }
+        if (!cascadaEnMovimiento || contenedorCascada == null) return;
 
-          float yLocalContenedor = contenedorCascada.localPosition.y;
-        
+        // Acumulamos cuánto han bajado las notas en lugar de mover todo el contenedor padre
+        distanciaRecorrida += velocidadCaida * Time.deltaTime;
+
         foreach (var nota in todasLasNotas)
         {
             if (nota.estaTerminada) continue;
 
-            float yLocalActual = yLocalContenedor + nota.posicionY;
+            // Posición actual de la base (borde inferior) y la punta superior respecto a la línea de golpe (Y = 0)
+            float yInferiorActual = nota.yInferiorOriginal - distanciaRecorrida;
+            float ySuperiorActual = yInferiorActual + nota.alturaOriginal;
 
-            if (!nota.estaActiva && yLocalActual <= alturaAparicionY)
+            // 1. ACTIVACIÓN DESDE EL POOL: Cuando el borde inferior entra al rango de visión
+            if (!nota.estaActiva && yInferiorActual <= alturaAparicionY)
             {
                 GameObject cuboReciclado;
                 Queue<GameObject> poolCorrecto = nota.esSostenido ? poolDeNotasNegras : poolDeNotasBlancas;
@@ -148,18 +156,12 @@ public class MidiReaderTest : MonoBehaviour
                 else
                     cuboReciclado = Instantiate(prefabCorrecto, contenedorCascada);
 
-                cuboReciclado.transform.localPosition = new Vector3(nota.posicionX, nota.posicionY, -0.02f);
-
-                Transform cuboVisual = cuboReciclado.transform.GetChild(0);
-                cuboVisual.localScale = new Vector3(anchoTecla * 0.9f, nota.alturaNota, 0.03f);
-
                 TextMeshPro texto = cuboReciclado.GetComponentInChildren<TextMeshPro>();
                 if (texto != null)
                 {
                     texto.text = nota.letraNota;
-
-                    float bordeInferior = -(nota.alturaNota / 2f) + 0.02f;
-                    texto.transform.localPosition = new Vector3(0, bordeInferior, -0.03f);
+                    // El texto se queda fijo a 2cm de la base de la nota
+                    texto.transform.localPosition = new Vector3(0f, 0.02f, -0.03f);
                 }
 
                 cuboReciclado.SetActive(true);
@@ -167,46 +169,70 @@ public class MidiReaderTest : MonoBehaviour
                 nota.estaActiva = true;
             }
 
-            if (nota.estaActiva && yLocalActual < alturaReciclajeY)
+            // 2. ACTUALIZACIÓN Y ESCALADO EN LA LÍNEA DE GOLPE (Y = 0)
+            if (nota.estaActiva && nota.cuboActivo != null)
             {
-                nota.cuboActivo.SetActive(false);
-                if (nota.esSostenido)
-                    poolDeNotasNegras.Enqueue(nota.cuboActivo);
-                else
-                    poolDeNotasBlancas.Enqueue(nota.cuboActivo);
+                // Si la parte superior ya llegó a 0 (la nota se consumió por completo), la reciclamos
+                if (ySuperiorActual <= 0f)
+                {
+                    nota.cuboActivo.SetActive(false);
+                    if (nota.esSostenido)
+                        poolDeNotasNegras.Enqueue(nota.cuboActivo);
+                    else
+                        poolDeNotasBlancas.Enqueue(nota.cuboActivo);
 
-                nota.cuboActivo = null;
-                nota.estaTerminada = true;
+                    nota.cuboActivo = null;
+                    nota.estaActiva = false;
+                    nota.estaTerminada = true;
+                    continue;
+                }
+
+                float posYBase;
+                float alturaVisible;
+
+                if (yInferiorActual > 0f)
+                {
+                    // Aún no toca la línea de golpe: baja normal con su tamaño completo
+                    posYBase = yInferiorActual;
+                    alturaVisible = nota.alturaOriginal;
+                }
+                else
+                {
+                    // Ya tocó la línea de golpe (yInferiorActual <= 0):
+                    // Se clava su base en Y = 0 y su altura se reduce a lo que falta por consumirse
+                    posYBase = 0f;
+                    alturaVisible = ySuperiorActual;
+                }
+
+                // Colocamos el objeto padre exactamente en el borde inferior de la nota
+                nota.cuboActivo.transform.localPosition = new Vector3(nota.posicionX, posYBase, -0.02f);
+
+                // Ajustamos el cubo visual hijo para que crezca desde Y=0 hacia arriba (pivote en la base)
+                Transform cuboVisual = nota.cuboActivo.transform.GetChild(0);
+                cuboVisual.localScale = new Vector3(anchoTecla * 0.9f, alturaVisible, 0.03f);
+                cuboVisual.localPosition = new Vector3(0f, alturaVisible / 2f, 0f);
             }
         }
     }
 
-    // --- CONTROL DE INTERFAZ (BOTONES) ---
+    // --- CONTROL DE INTERFAZ (BOTONES DE VELOCIDAD) ---
 
-    public void EstablecerVelocidad25()
-    {
-        velocidadCaida = velocidadOriginal * 0.25f;
-    }
+    public void EstablecerVelocidad25() { velocidadCaida = velocidadOriginal * 0.25f; }
+    public void EstablecerVelocidad50() { velocidadCaida = velocidadOriginal * 0.5f; }
+    public void EstablecerVelocidad75() { velocidadCaida = velocidadOriginal * 0.75f; }
+    public void EstablecerVelocidad100() { velocidadCaida = velocidadOriginal; }
 
-    public void EstablecerVelocidad50()
+    public void CambiarVelocidadCaida(float multiplicador)
     {
-        velocidadCaida = velocidadOriginal * 0.5f;
-    }
-
-    public void EstablecerVelocidad75()
-    {
-        velocidadCaida = velocidadOriginal * 0.75f;
-    }
-
-    public void EstablecerVelocidad100()
-    {
-        velocidadCaida = velocidadOriginal;
+        velocidadCaida = velocidadOriginal * multiplicador;
     }
 
     public void IniciarCascada(string nombreArchivo)
     {
+        DetenerCascada();
+
         nombreArchivoMidi = nombreArchivo;
-        todasLasNotas.Clear();
+        distanciaRecorrida = 0f;
 
         if (contenedorCascada != null)
         {
@@ -217,13 +243,10 @@ public class MidiReaderTest : MonoBehaviour
         StartCoroutine(ExtraerYLeerMidi(nombreArchivo));
     }
 
-    public void CambiarVelocidadCaida(float multiplicador)
-    {
-        velocidadCaida = velocidadOriginal * multiplicador;
-    }
-
     public void DetenerCascada()
     {
+        cascadaEnMovimiento = false;
+
         foreach (var nota in todasLasNotas)
         {
             if (nota.estaActiva && nota.cuboActivo != null)
@@ -263,7 +286,6 @@ public class MidiReaderTest : MonoBehaviour
                 if (www.result == UnityWebRequest.Result.Success)
                 {
                     File.WriteAllBytes(rutaPersistente, www.downloadHandler.data);
-
                     ProcesarMidiFisico(rutaPersistente);
                 }
                 else
