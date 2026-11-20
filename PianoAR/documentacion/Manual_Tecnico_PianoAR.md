@@ -11,6 +11,7 @@
 **N° DE CUENTA:** 421053610  
 **TEMÁTICA:** Educación e Innovación Tecnológica  
 **MOTOR DE DESARROLLO:** Unity 6 (6000.3.11f1) / ARFoundation 6.3.5  
+**REPOSITORIO DE GITHUB:** https://github.com/Fernando-David/PianoAR  
 **FECHA DE ENTREGA:** 18 de noviembre de 2026  
 
 ---
@@ -865,6 +866,7 @@ El desarrollo de **Piano AR** permitió integrar de forma práctica conceptos av
 ---
 
 ## Referencias Bibliográficas y Técnicas
+* Repositorio Oficial del Proyecto **Piano AR** en GitHub: https://github.com/Fernando-David/PianoAR
 * Unity Technologies. (2026). *AR Foundation Documentation (v6.3.5) & Input System EnhancedTouch API*. Recuperado de https://docs.unity3d.com/
 * Melanchall. (2026). *DryWetMIDI: .NET library to work with MIDI files and MIDI devices*. GitHub Repository & Documentation. Recuperado de https://melanchall.github.io/drywetmidi/
 * Google Developers. (2026). *ARCore SDK for Unity Developer Guide*. Recuperado de https://developers.google.com/ar
